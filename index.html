@@ -5,120 +5,243 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>二维码扫描页面</title>
     <style>
-        body {
-            font-family: Arial, "Microsoft YaHei", sans-serif;
+        /* 移除所有样式，让服务端返回的HTML完全控制样式 */
+        html, body {
             margin: 0;
-            padding: 20px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
         }
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-        .loading {
+        /* 加载提示样式 */
+        #loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
             display: flex;
             justify-content: center;
             align-items: center;
-            min-height: 80vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             font-size: 18px;
+            font-family: Arial, "Microsoft YaHei", sans-serif;
+            z-index: 9999;
         }
-        .error {
+        #loading.hidden {
+            display: none;
+        }
+        /* 错误提示样式 */
+        #error {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            z-index: 9999;
+        }
+        #error.show {
+            display: flex;
+        }
+        .error-content {
             background: white;
             border-radius: 10px;
             padding: 40px;
             text-align: center;
             box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            max-width: 600px;
+            margin: 20px;
         }
-        .error h1 {
+        .error-content h1 {
             color: #f56c6c;
             margin-bottom: 20px;
+            font-family: Arial, "Microsoft YaHei", sans-serif;
         }
-        .error p {
+        .error-content p {
             color: #666;
             line-height: 1.6;
+            font-family: Arial, "Microsoft YaHei", sans-serif;
+        }
+        /* 内容区域 - 完全由服务端HTML控制，不添加任何样式 */
+        #content {
+            /* 不设置任何样式，让服务端HTML完全控制 */
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div id="loading" class="loading">
-            <div>正在加载二维码页面...</div>
-        </div>
-        <div id="error" class="error" style="display: none;">
+    <div id="loading">
+        <div>正在加载二维码页面...</div>
+    </div>
+    <div id="error">
+        <div class="error-content">
             <h1>⚠️ 加载失败</h1>
             <p id="error-message">无法从服务器获取页面内容</p>
         </div>
-        <div id="content" style="display: none;"></div>
     </div>
+    <div id="content"></div>
 
     <script>
         // 配置：后端服务器地址
         const BACKEND_SERVER = 'https://bar.zzzzxyz.xyz:8443';
+        // 注意：如果服务器有路径前缀（如 /app），需要在这里添加
+        // 如果服务器API在 /app/api 下，设置为 '/app'
+        // 如果服务器API直接在 /api 下，设置为 ''
+        const API_BASE_PATH = '/app'; // 根据你的服务器配置修改这里
         
-        // 从URL获取设备ID
-        function getDeviceIdFromUrl() {
+        // 从URL获取设备自定义ID（custom_id）
+        function getCustomIdFromUrl() {
             const path = window.location.pathname;
             const pathParts = path.split('/').filter(p => p);
             
-            // 支持格式: /device/{deviceId} 或 /{deviceId}
-            if (pathParts.length === 1) {
+            // 支持格式: /device/{customId} 或 /{customId}
+            if (pathParts.length === 1 && pathParts[0] !== 'index.html') {
                 return pathParts[0];
             } else if (pathParts.length === 2 && pathParts[0] === 'device') {
                 return pathParts[1];
             }
             
-            // 如果没有设备ID，尝试从查询参数获取
+            // 如果没有自定义ID，尝试从查询参数获取
             const params = new URLSearchParams(window.location.search);
-            return params.get('device') || params.get('device_id') || '1'; // 默认设备ID为1
+            return params.get('custom_id') || params.get('id') || null; // 不再使用默认值，必须提供custom_id
         }
         
         // 从后端服务器获取页面内容
         async function loadQRPage() {
-            const deviceId = getDeviceIdFromUrl();
-            const apiUrl = `${BACKEND_SERVER}/api/qr_page/${deviceId}`;
+            const customId = getCustomIdFromUrl();
+            
+            // 如果没有提供custom_id，显示错误
+            if (!customId) {
+                document.getElementById('loading').classList.add('hidden');
+                const errorDiv = document.getElementById('error');
+                const errorMessage = document.getElementById('error-message');
+                errorMessage.innerHTML = '请在URL中提供设备自定义ID（custom_id）<br><br>格式：<code>?custom_id=你的自定义ID</code> 或 <code>/你的自定义ID</code>';
+                errorDiv.classList.add('show');
+                return;
+            }
+            
+            // 构建完整的API URL（使用custom_id而不是数字ID）
+            const apiUrl = `${BACKEND_SERVER}${API_BASE_PATH}/api/qr_page_by_custom_id/${encodeURIComponent(customId)}`;
+            
+            console.log('正在请求:', apiUrl);
             
             try {
+                // 注意：如果后端使用自签名 SSL 证书，浏览器可能会阻止请求
+                // 这种情况下，需要先在浏览器中直接访问 API URL 并接受证书
                 const response = await fetch(apiUrl, {
                     method: 'GET',
                     headers: {
                         'Accept': 'text/html',
                     },
+                    mode: 'cors', // 明确指定CORS模式
+                    credentials: 'omit', // 不发送 cookies
                 });
                 
+                console.log('响应状态:', response.status, response.statusText);
+                
                 if (!response.ok) {
-                    throw new Error(`服务器返回错误: ${response.status} ${response.statusText}`);
+                    const errorText = await response.text().catch(() => '');
+                    throw new Error(`服务器返回错误: ${response.status} ${response.statusText}\n${errorText.substring(0, 200)}`);
                 }
                 
                 const html = await response.text();
                 
-                // 隐藏加载提示
-                document.getElementById('loading').style.display = 'none';
+                if (!html || html.trim().length === 0) {
+                    throw new Error('服务器返回了空内容');
+                }
                 
-                // 显示内容
-                const contentDiv = document.getElementById('content');
-                contentDiv.innerHTML = html;
+                // 隐藏加载提示
+                document.getElementById('loading').classList.add('hidden');
+                
+                // 解析服务端返回的HTML
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                
+                // 提取服务端HTML的head中的style标签，添加到当前页面的head
+                const serverStyles = doc.head.querySelectorAll('style');
+                serverStyles.forEach(style => {
+                    // 检查是否已存在相同的style（避免重复）
+                    const existingStyles = document.head.querySelectorAll('style');
+                    let exists = false;
+                    existingStyles.forEach(existing => {
+                        if (existing.textContent === style.textContent) {
+                            exists = true;
+                        }
+                    });
+                    if (!exists) {
+                        const newStyle = document.createElement('style');
+                        . = ;
+                        <.样式.>(newStyle);
+                    
+                )
+                
+                
+                 = .;
+                最小高度：100 = vh;getElementById('content');
+                
+        .容器 {serverBody) {
+                    // 清空content div
+                    contentDiv.innerHTML = '';
+                    
+                    // 将服务端body的所有子元素移动到content div
+                    // 这样服务端的HTML结构（包括.container等）会完全保留
+                    while (serverBody.firstChild) {
+                        contentDiv.appendChild(serverBody.firstChild);
+                    }
+                } else {
+                    // 如果没有body标签，直接使用HTML内容
+                    contentDiv.innerHTML = html;
+                }
+                
+                // 显示内容（content div本身没有样式，完全由服务端HTML控制）
                 contentDiv.style.display = 'block';
                 
-            } catch (error) {
-                console.error('加载失败:', error);
+             ) 
+                }.error('加载失败:', error);
+        .错误.h1{('错误详情:', 
+                    颜色: #f56c6c;error.name,
+                    下边距：20.像素;
+                    }: error.stack
+);
                 
-                // 隐藏加载提示
-                document.getElementById('loading').style.display = 'none';
+                行高: 1.6;
+                }.getElementById('loading').classList.add('hidden');
                 
-                // 显示错误信息
-                const errorDiv = document.getElementById('error');
-                const errorMessage = document.getElementById('error-message');
-                errorMessage.textContent = `无法从服务器获取页面内容: ${error.message}`;
-                errorDiv.style.display = 'block';
+                
+                < 身体 = >.getElementById('error');
+                < div = 类="容器">'error-message');
+                
+                  = ;
+                </ += div>error.message}\n\n`;
+                 += ${apiUrl}\n\n
+                
+                
+                </ div>.message.includes('CORS') || error.message.includes('fetch')) {
+                     += \n
+                    </ += div\n\n>;
+                    errorText += `解决方法：\n`;
+                    < += 脚本\n>;
+                    // 配置：后端服务器地址 += `2. 确认API路径是否正确（可能需要 /app 前缀）\n`;
+                     += 
+                }
+                
+                
+                errorMessage.innerHTML = errorText.replace(/\n/g, '<br>');
+                errorDiv.classList.add('show');
             }
         }
         
         // 页面加载完成后自动获取内容
-        window.addEventListener('DOMContentLoaded', loadQRPage);
+        window.addEventListener('DOMContentLoaded', function() {
+            console.log('页面加载完成，开始获取二维码页面');
+            loadQRPage();
+        });
         
-        // 每30秒自动刷新（可选）
+        // 每30秒自动刷新（可选，取消注释启用）
         // setInterval(loadQRPage, 30000);
     </script>
 </body>

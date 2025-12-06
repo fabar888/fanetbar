@@ -2,16 +2,18 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>二维码扫描页面</title>
     <style>
-        /* 移除所有样式，让服务端返回的HTML完全控制样式 */
+        /* 基础样式，确保页面在手机上正确显示 */
         html, body {
             margin: 0;
             padding: 0;
             width: 100%;
             height: 100%;
             overflow: auto;
+            -webkit-text-size-adjust: 100%;
+            -ms-text-size-adjust: 100%;
         }
         /* 加载提示样式 */
         #loading {
@@ -57,6 +59,16 @@
             max-width: 600px;
             margin: 20px;
         }
+        @media (max-width: 480px) {
+            .error-content {
+                padding: 20px;
+                margin: 10px;
+            }
+            #loading {
+                font-size: 16px;
+                padding: 20px;
+            }
+        }
         .error-content h1 {
             color: #f56c6c;
             margin-bottom: 20px;
@@ -67,9 +79,24 @@
             line-height: 1.6;
             font-family: Arial, "Microsoft YaHei", sans-serif;
         }
-        /* 内容区域 - 完全由服务端HTML控制，不添加任何样式 */
+        /* 内容区域 - 确保服务端HTML能够正确显示 */
         #content {
-            /* 不设置任何样式，让服务端HTML完全控制 */
+            width: 100%;
+            min-height: 100vh;
+            display: block;
+        }
+        /* 确保服务端返回的body样式能够正确应用 */
+        #content > * {
+            width: 100%;
+        }
+        /* 移动端优化 */
+        @media (max-width: 480px) {
+            html, body {
+                font-size: 14px;
+            }
+            #content {
+                padding: 5px !important;
+            }
         }
     </style>
 </head>
@@ -198,7 +225,15 @@
                     });
                     if (!exists) {
                         const newStyle = document.createElement('style');
-                        newStyle.textContent = style.textContent;
+                        // 将服务端样式中的 body 选择器替换为 #content，确保样式正确应用
+                        let styleText = style.textContent;
+                        // 替换独立的 body 选择器为 #content
+                        styleText = styleText.replace(/^(\s*)body\s*\{/gm, '$1#content {');
+                        // 处理媒体查询中的 body（需要更精确的匹配）
+                        styleText = styleText.replace(/(@media[^{]*\{[^}]*?)(\s*)body\s*\{/g, function(match, mediaQuery, indent) {
+                            return mediaQuery + indent + '#content {';
+                        });
+                        newStyle.textContent = styleText;
                         document.head.appendChild(newStyle);
                     }
                 });
@@ -221,8 +256,18 @@
                     contentDiv.innerHTML = html;
                 }
                 
-                // 显示内容（content div本身没有样式，完全由服务端HTML控制）
-                contentDiv.style.display = 'block';
+                // 应用服务端body的样式到content div（作为备用，主要样式由CSS控制）
+                // 服务端的body使用了 flex 布局，需要应用到 #content
+                // 注意：服务端的body样式已经通过CSS替换为#content，这里只是确保兼容性
+                contentDiv.style.display = 'flex';
+                contentDiv.style.justifyContent = 'center';
+                contentDiv.style.alignItems = 'center';
+                contentDiv.style.minHeight = '100vh';
+                contentDiv.style.margin = '0';
+                contentDiv.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+                contentDiv.style.padding = '10px';
+                contentDiv.style.fontFamily = 'Arial, "Microsoft YaHei", sans-serif';
+                contentDiv.style.boxSizing = 'border-box';
                 
             } catch (error) {
                 console.error('加载失败:', error);

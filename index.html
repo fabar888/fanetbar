@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>二维码扫描页面</title>
+    <title>FABar二维码系统扫描页面</title>
     <style>
-        /* 基础样式，确保页面在手机上正确显示 */
+        
         html, body {
             margin: 0;
             padding: 0;
@@ -15,7 +15,7 @@
             -webkit-text-size-adjust: 100%;
             -ms-text-size-adjust: 100%;
         }
-        /* 加载提示样式 */
+        
         #loading {
             position: fixed;
             top: 0;
@@ -34,7 +34,7 @@
         #loading.hidden {
             display: none;
         }
-        /* 错误提示样式 */
+        
         #error {
             position: fixed;
             top: 0;
@@ -79,17 +79,17 @@
             line-height: 1.6;
             font-family: Arial, "Microsoft YaHei", sans-serif;
         }
-        /* 内容区域 - 确保服务端HTML能够正确显示 */
+        
         #content {
             width: 100%;
             min-height: 100vh;
             display: block;
         }
-        /* 确保服务端返回的body样式能够正确应用 */
+        
         #content > * {
             width: 100%;
         }
-        /* 移动端优化 */
+        
         @media (max-width: 480px) {
             html, body {
                 font-size: 14px;
@@ -113,31 +113,46 @@
     <div id="content"></div>
 
     <script>
-        // 配置：后端服务器地址
-        const BACKEND_SERVER = 'https://bar.zzzzxyz.xyz:8443';
-        // 注意：如果服务器有路径前缀（如 /app），需要在这里添加
-        // 如果服务器API在 /app/api 下，设置为 '/app'
-        // 如果服务器API直接在 /api 下，设置为 ''
-        const API_BASE_PATH = '/app'; // 根据你的服务器配置修改这里
+        function decryptConfig(encrypted) {
+            try {
+                let decoded = atob(encrypted);
+                decoded = decoded.split('').reverse().join('');
+                let result = '';
+                for (let i = 0; i < decoded.length; i++) {
+                    result += String.fromCharCode(decoded.charCodeAt(i) - 1);
+                }
+                return result;
+            } catch (e) {
+                return '';
+            }
+        }
         
-        // 从URL获取设备自定义ID（custom_id）
+        const encryptedServer = 'NDU1OTt7enkve3p5e3t7ey9zYmMwMDt0cXV1aQ==';
+        const encryptedPath = 'cXFiMA==';
+        
+        let BACKEND_SERVER = decryptConfig(encryptedServer);
+        let API_BASE_PATH = decryptConfig(encryptedPath);
+        
+        if (!BACKEND_SERVER || BACKEND_SERVER === '' || BACKEND_SERVER.length < 10) {
+            const step1 = 'https://bar.zzzzxyz.xyz:8443'.split('').map(c => String.fromCharCode(c.charCodeAt(0) + 1)).join('');
+            const step2 = step1.split('').reverse().join('');
+            BACKEND_SERVER = 'https://bar.zzzzxyz.xyz:8443';
+        }
+        if (!API_BASE_PATH || API_BASE_PATH === '' || !API_BASE_PATH.startsWith('/')) {
+            API_BASE_PATH = '/app';
+        }
+        
         function getCustomIdFromUrl() {
             const path = window.location.pathname;
             const pathParts = path.split('/').filter(p => p);
-            
-            // 支持格式: /device/{customId} 或 /{customId}
             if (pathParts.length === 1 && pathParts[0] !== 'index.html') {
                 return pathParts[0];
             } else if (pathParts.length === 2 && pathParts[0] === 'device') {
                 return pathParts[1];
             }
-            
-            // 如果没有自定义ID，尝试从查询参数获取
             const params = new URLSearchParams(window.location.search);
-            return params.get('custom_id') || params.get('id') || null; // 不再使用默认值，必须提供custom_id
+            return params.get('custom_id') || params.get('id') || null;
         }
-        
-        // 带超时的 fetch 请求
         function fetchWithTimeout(url, options = {}, timeout = 10000) {
             return new Promise((resolve, reject) => {
                 const timer = setTimeout(() => {
@@ -156,11 +171,8 @@
             });
         }
         
-        // 从后端服务器获取页面内容
         async function loadQRPage() {
             const customId = getCustomIdFromUrl();
-            
-            // 如果没有提供custom_id，显示错误
             if (!customId) {
                 document.getElementById('loading').classList.add('hidden');
                 const errorDiv = document.getElementById('error');
@@ -169,28 +181,18 @@
                 errorDiv.classList.add('show');
                 return;
             }
-            
-            // 构建完整的API URL（使用custom_id而不是数字ID）
             const apiUrl = `${BACKEND_SERVER}${API_BASE_PATH}/api/qr_page_by_custom_id/${encodeURIComponent(customId)}`;
             
-            console.log('正在请求:', apiUrl);
-            console.log('当前页面URL:', window.location.href);
-            console.log('后端服务器:', BACKEND_SERVER);
-            console.log('API基础路径:', API_BASE_PATH);
-            
             try {
-                // 使用带超时的 fetch（10秒超时）
                 const response = await fetchWithTimeout(apiUrl, {
                     method: 'GET',
                     headers: {
                         'Accept': 'text/html',
                     },
-                    mode: 'cors', // 明确指定CORS模式
-                    credentials: 'omit', // 不发送 cookies
+                    mode: 'cors',
+                    credentials: 'omit',
                 }, 10000);
                 
-                console.log('响应状态:', response.status, response.statusText);
-                console.log('响应头:', Object.fromEntries(response.headers.entries()));
                 
                 if (!response.ok) {
                     const errorText = await response.text().catch(() => '');
@@ -203,19 +205,12 @@
                     throw new Error('服务器返回了空内容');
                 }
                 
-                console.log('成功获取HTML内容，长度:', html.length);
                 
-                // 隐藏加载提示
                 document.getElementById('loading').classList.add('hidden');
-                
-                // 解析服务端返回的HTML
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(html, 'text/html');
-                
-                // 提取服务端HTML的head中的style标签，添加到当前页面的head
                 const serverStyles = doc.head.querySelectorAll('style');
                 serverStyles.forEach(style => {
-                    // 检查是否已存在相同的style（避免重复）
                     const existingStyles = document.head.querySelectorAll('style');
                     let exists = false;
                     existingStyles.forEach(existing => {
@@ -225,11 +220,8 @@
                     });
                     if (!exists) {
                         const newStyle = document.createElement('style');
-                        // 将服务端样式中的 body 选择器替换为 #content，确保样式正确应用
                         let styleText = style.textContent;
-                        // 替换独立的 body 选择器为 #content
                         styleText = styleText.replace(/^(\s*)body\s*\{/gm, '$1#content {');
-                        // 处理媒体查询中的 body（需要更精确的匹配）
                         styleText = styleText.replace(/(@media[^{]*\{[^}]*?)(\s*)body\s*\{/g, function(match, mediaQuery, indent) {
                             return mediaQuery + indent + '#content {';
                         });
@@ -237,28 +229,16 @@
                         document.head.appendChild(newStyle);
                     }
                 });
-                
-                // 获取服务端HTML的body内容
                 const serverBody = doc.body;
                 const contentDiv = document.getElementById('content');
-                
                 if (serverBody) {
-                    // 清空content div
                     contentDiv.innerHTML = '';
-                    
-                    // 将服务端body的所有子元素移动到content div
-                    // 这样服务端的HTML结构（包括.container等）会完全保留
                     while (serverBody.firstChild) {
                         contentDiv.appendChild(serverBody.firstChild);
                     }
                 } else {
-                    // 如果没有body标签，直接使用HTML内容
                     contentDiv.innerHTML = html;
                 }
-                
-                // 应用服务端body的样式到content div（作为备用，主要样式由CSS控制）
-                // 服务端的body使用了 flex 布局，需要应用到 #content
-                // 注意：服务端的body样式已经通过CSS替换为#content，这里只是确保兼容性
                 contentDiv.style.display = 'flex';
                 contentDiv.style.justifyContent = 'center';
                 contentDiv.style.alignItems = 'center';
@@ -270,82 +250,40 @@
                 contentDiv.style.boxSizing = 'border-box';
                 
             } catch (error) {
-                console.error('加载失败:', error);
-                console.error('错误详情:', {
-                    name: error.name,
-                    message: error.message,
-                    stack: error.stack
-                });
                 
-                // 隐藏加载提示
+                
                 document.getElementById('loading').classList.add('hidden');
                 
-                // 显示详细错误信息
+                
                 const errorDiv = document.getElementById('error');
                 const errorMessage = document.getElementById('error-message');
                 
                 let errorText = `无法从服务器获取页面内容\n\n`;
                 errorText += `错误类型: ${error.name}\n`;
                 errorText += `错误信息: ${error.message}\n\n`;
-                errorText += `请求地址: ${apiUrl}\n\n`;
                 
-                // 根据错误类型给出不同的提示
+                
                 if (error.message.includes('超时') || error.message.includes('timeout')) {
-                    errorText += `⚠️ 请求超时。可能的原因：\n`;
-                    errorText += `1. 后端服务器未运行或无法访问\n`;
-                    errorText += `2. 网络连接问题\n`;
-                    errorText += `3. 服务器响应太慢\n\n`;
-                    errorText += `请检查：\n`;
-                    errorText += `- 后端服务器是否正常运行\n`;
-                    errorText += `- 服务器地址是否正确: ${BACKEND_SERVER}\n`;
-                    errorText += `- 网络连接是否正常`;
+                    errorText += `⚠️ 请求超时，请检查网络连接。`;
                 } else if (error.message.includes('CORS') || error.message.includes('fetch') || error.name === 'TypeError') {
-                    errorText += `⚠️ 这可能是跨域（CORS）问题或网络错误。\n\n`;
-                    errorText += `可能的原因：\n`;
-                    errorText += `1. 后端服务器未正确配置CORS头\n`;
-                    errorText += `2. 后端服务器使用自签名SSL证书，浏览器阻止了请求\n`;
-                    errorText += `3. 网络连接失败\n\n`;
-                    errorText += `解决方法：\n`;
-                    errorText += `1. 检查后端服务器是否允许来自 GitHub Pages 域名的请求\n`;
-                    errorText += `2. 确认API路径是否正确（可能需要 /app 前缀）\n`;
-                    errorText += `3. 如果使用自签名证书，需要先在浏览器中直接访问 API URL 并接受证书\n`;
-                    errorText += `4. 打开浏览器控制台（F12）查看详细错误信息\n`;
-                    errorText += `5. 尝试直接访问: ${apiUrl}`;
+                    errorText += `⚠️ 网络请求失败，请检查配置。`;
                 } else if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-                    errorText += `⚠️ 网络请求失败。\n\n`;
-                    errorText += `可能的原因：\n`;
-                    errorText += `1. 后端服务器未运行\n`;
-                    errorText += `2. 服务器地址配置错误\n`;
-                    errorText += `3. SSL证书问题（自签名证书）\n`;
-                    errorText += `4. 防火墙或网络限制\n\n`;
-                    errorText += `请检查：\n`;
-                    errorText += `- 后端服务器是否正常运行: ${BACKEND_SERVER}\n`;
-                    errorText += `- 尝试在浏览器中直接访问: ${apiUrl}\n`;
-                    errorText += `- 查看浏览器控制台（F12）的详细错误信息`;
+                    errorText += `⚠️ 网络连接失败，请检查网络设置。`;
                 } else {
-                    errorText += `⚠️ 未知错误。\n\n`;
-                    errorText += `请打开浏览器控制台（F12）查看详细错误信息。`;
+                    errorText += `⚠️ 发生错误，请查看浏览器控制台获取详细信息。`;
                 }
                 
-                // 显示错误信息（保留换行）
+                
                 errorMessage.innerHTML = errorText.replace(/\n/g, '<br>');
                 errorDiv.classList.add('show');
             }
         }
         
-        // 页面加载完成后自动获取内容
         window.addEventListener('DOMContentLoaded', function() {
-            console.log('=== 页面加载完成 ===');
-            console.log('当前页面URL:', window.location.href);
-            console.log('后端服务器:', BACKEND_SERVER);
-            console.log('API基础路径:', API_BASE_PATH);
-            console.log('开始获取二维码页面...');
             loadQRPage();
         });
         
-        // 全局错误处理，捕获未处理的错误
         window.addEventListener('error', function(event) {
-            console.error('全局错误:', event.error);
             if (event.error && event.error.message) {
                 const errorDiv = document.getElementById('error');
                 const errorMessage = document.getElementById('error-message');
@@ -357,9 +295,7 @@
             }
         });
         
-        // 捕获未处理的 Promise 拒绝
         window.addEventListener('unhandledrejection', function(event) {
-            console.error('未处理的 Promise 拒绝:', event.reason);
             const errorDiv = document.getElementById('error');
             const errorMessage = document.getElementById('error-message');
             if (errorDiv && !errorDiv.classList.contains('show')) {
@@ -370,8 +306,8 @@
             }
         });
         
-        // 每30秒自动刷新（可选，取消注释启用）
-        // setInterval(loadQRPage, 30000);
+        
+        
     </script>
 </body>
 </html>

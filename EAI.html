@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>AI电商商机分析器 V21.9 (Gemini-Pro稳定版)</title>
+    <script src="https://cdn.bootcdn.net/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.bootcdn.net/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+    <style>
+        /* --- 核心样式 (完全保留 V20 原样) --- */
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; padding: 20px; max-width: 98%; margin: 0 auto; padding-bottom: 80px; }
+        h1 { color: #2c3e50; text-align: center; margin-bottom: 5px; }
+        .subtitle { text-align: center; color: #7f8c8d; font-size: 14px; margin-bottom: 20px; }
+        .container { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        
+        .drop-zone { border: 3px dashed #3498db; border-radius: 10px; padding: 30px; text-align: center; color: #3498db; background-color: #f0f8ff; cursor: pointer; transition: 0.3s; margin-bottom: 15px; }
+        .drop-zone:hover, .drop-zone.dragover { background-color: #e1f0fa; border-color: #2980b9; transform: scale(1.01); }
+        .drop-zone h3 { margin: 0 0 10px 0; font-size: 18px; }
+        .drop-zone p { margin: 0; font-size: 13px; color: #7f8c8d; }
+        
+        textarea { width: 100%; height: 80px; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-family: monospace; font-size: 12px; margin-top: 10px; }
+        
+        .btn-group { margin-top: 20px; text-align: center; }
+        button { padding: 10px 24px; font-size: 15px; cursor: pointer; border: none; border-radius: 5px; margin: 0 10px; transition: 0.3s; font-weight: bold; }
+        .btn-analyze { background-color: #3498db; color: white; }
+        .btn-analyze:hover { background-color: #2980b9; }
+        .btn-export { background-color: #27ae60; color: white; display: none; }
+        .btn-export:hover { background-color: #219150; }
+        #status { margin-top: 15px; font-weight: bold; color: #e74c3c; text-align: center; }
+        
+        .table-container { overflow-x: auto; margin-top: 20px; border: 1px solid #ddd; max-height: 700px; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; white-space: nowrap; display: none; }
+        th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; vertical-align: middle; }
+        
+        th { background-color: #f8f9fa; color: #333; position: sticky; top: 0; z-index: 10; border-bottom: 2px solid #ddd; user-select: none; }
+        th.sortable-th { cursor: grab; transition: background-color 0.2s; }
+        th.sortable-th:active { cursor: grabbing; background-color: #dbecef; }
+        .sortable-ghost { opacity: 0.6; background-color: #f1c40f !important; border: 2px dashed #f39c12; }
+        .sortable-chosen { background-color: #ecf0f1 !important; }
+        th.ignore-sort { cursor: default; background-color: #eaf2f8; z-index: 12; }
+        .sort-icon { display: inline-block; width: 12px; text-align: center; cursor: pointer; color: #999; }
+
+        .th-core { background-color: #eaf2f8 !important; border-bottom: 2px solid #3498db; color: #2c3e50; }
+        .th-sales { background-color: #fef9e7 !important; border-bottom: 2px solid #f1c40f; color: #d35400; } 
+        .th-clean { background-color: #e8f6f3 !important; border-bottom: 2px solid #16a085; color: #16a085; }
+        .td-score-main { font-weight: bold; font-size: 15px; color: #e67e22; }
+        .td-sales-month { font-weight: bold; font-size: 15px; color: #c0392b; background-color: #fffbf0; }
+        .td-sales-day { font-weight: bold; font-size: 15px; color: #27ae60; background-color: #f0fff4; }
+        .th-original { background-color: #eee; color: #666; border-left: 3px solid #ccc; }
+        .td-original { color: #888; border-left: 3px solid #ccc; }
+        .row-top { background-color: #fffbf0; }
+
+        .btn-settings { background-color: #95a5a6; color: white; float: right; font-size: 12px; padding: 5px 10px; margin-right: 0; }
+        .th-check { width: 30px; text-align: center; background-color: #eaf2f8; position: sticky; left: 0; z-index: 12; border-right: 2px solid #ddd; }
+        .td-check { text-align: center; position: sticky; left: 0; background-color: #fff; z-index: 9; border-right: 2px solid #ddd; }
+        .row-top .td-check { background-color: #fffbf0; }
+
+        .th-total-all { background-color: #e74c3c !important; color: white; border-bottom: 2px solid #c0392b; min-width: 100px; }
+        .td-total-all { position: relative; font-weight: bold; font-size: 16px; text-align: right; padding-right: 15px; color: #333; }
+        .data-bar { position: absolute; left: 0; top: 10%; height: 80%; background-color: #ffcccc; opacity: 0.5; z-index: 0; border-radius: 0 4px 4px 0; pointer-events: none; }
+        .score-val { position: relative; z-index: 1; }
+        .score-crown { color: #f1c40f; margin-right: 4px; font-size: 18px; }
+
+        .th-blue-score { background-color: #34495e !important; color: #00d2d3; border-left: 3px solid #00d2d3; text-align: center; min-width: 90px; }
+        .td-blue-score { text-align: center; font-weight: bold; font-size: 16px; border-left: 3px solid #00d2d3; color: #2c3e50; font-family: monospace; }
+        .th-blue-decision { background-color: #34495e !important; color: #fff; text-align: center; min-width: 100px; }
+        .td-blue-decision { text-align: center; font-weight: bold; }
+
+        .th-interpret { background-color: #e8f8f5 !important; color: #16a085; border-bottom: 2px solid #1abc9c; font-size: 12px; }
+        .td-interpret { font-size: 12px; color: #555; white-space: nowrap; }
+        .txt-good { color: #c0392b; font-weight: bold; }
+        .txt-bad { color: #95a5a6; }
+
+        .decision-must { color: #c0392b; background: #fadbd8; padding: 4px 8px; border-radius: 4px; border: 1px solid #c0392b; }
+        .decision-can { color: #27ae60; background: #d5f5e3; padding: 4px 8px; border-radius: 4px; }
+        .decision-observe { color: #f39c12; background: #fef9e7; padding: 4px 8px; border-radius: 4px; }
+        .decision-drop { color: #7f8c8d; background: #ecf0f1; padding: 4px 8px; border-radius: 4px; }
+
+        /* --- 新增：双模AI与底部栏 --- */
+        .th-ai-ds { background-color: #2c3e50 !important; color: #f1c40f; border-left: 3px solid #f39c12; text-align: center; min-width: 220px; }
+        .th-ai-gem { background-color: #4b7bec !important; color: #fff; border-left: 3px solid #3867d6; text-align: center; min-width: 220px; }
+        .td-ai-reason { font-size: 12px; color: #333; white-space: normal; max-width: 350px; line-height: 1.5; text-align: left; vertical-align: top; }
+        .td-ai-loading { color: #999; font-style: italic; }
+        .td-ai-error { color: #e74c3c; font-weight: bold; font-size: 11px; }
+
+        .bottom-bar { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #2c3e50; padding: 12px 30px; border-radius: 30px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); display: none; z-index: 1000; align-items: center; gap: 15px; color: white; }
+        .model-select { padding: 6px 12px; border-radius: 15px; border: 1px solid #7f8c8d; font-weight: bold; cursor: pointer; background: #34495e; color: white; outline: none; }
+        .btn-batch { background-color: #f1c40f; color: #2c3e50; padding: 8px 20px; border-radius: 20px; font-weight: bold; border: none; cursor: pointer;}
+
+        /* --- 升级：设置弹窗 --- */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; }
+        .modal-content { background: white; width: 450px; margin: 50px auto; padding: 20px; border-radius: 8px; max-height: 90vh; overflow-y: auto; }
+        .modal input[type="text"], .modal input[type="password"], .modal input[type="number"], .modal input[type="color"] { width: 92%; padding: 8px; margin: 5px 0 10px 0; border: 1px solid #ccc; border-radius: 4px; }
+        .modal label { font-weight: bold; display: block; margin-top: 10px; font-size: 13px; color: #333; }
+        .color-group { display: flex; gap: 10px; margin-bottom: 10px; }
+        .color-item { flex: 1; }
+        .color-item label { font-size: 12px; margin-top: 5px; }
+        .api-card { background: #f8f9fa; padding: 12px; border-radius: 6px; margin-bottom: 15px; border: 1px solid #eee; }
+        .api-card h4 { margin: 0 0 10px 0; font-size: 14px; color: #555; border-bottom: 1px solid #eee; padding-bottom: 5px; }
+        .check-btn { float: right; font-size: 12px; cursor: pointer; color: #3498db; text-decoration: underline; background: none; border: none; padding: 0; }
+        .test-log { font-size: 12px; background: #2c3e50; color: #ecf0f1; padding: 10px; border-radius: 4px; margin-top: 10px; display: none; line-height: 1.4; word-break: break-all; }
+        .status-ok-text { color: #2ecc71; font-weight: bold; }
+        .status-err-text { color: #e74c3c; font-weight: bold; }
+        .btn-config-io { width: 48%; padding: 8px; cursor: pointer; border-radius: 4px; border: none; font-weight: bold; color: white; margin-top: 10px; }
+        .btn-exp { background-color: #27ae60; float: left; }
+        .btn-imp { background-color: #e67e22; float: right; }
+        .btn-reset { background-color: #7f8c8d; width: 100%; margin-bottom: 10px; color: white; padding: 8px; border:none; border-radius:4px; cursor:pointer;}
+        
+        /* 状态灯 */
+        .system-status { position: fixed; bottom: 10px; left: 10px; font-size: 12px; color: #aaa; z-index: 9999; }
+        .status-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background-color: #ccc; margin-right: 5px; }
+        .status-ok { background-color: #2ecc71; }
+        .status-err { background-color: #e74c3c; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <button class="btn-settings" onclick="openSettings()">⚙️ 设置 / 模型</button>
+    <h1>🏆 AI 电商商机分析器 V21.9</h1>
+    <div class="subtitle">全能指数 + 双模竞技场 (Gemini-Pro 稳定版)</div>
+    
+    <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+        <h3>📂 拖拽 Excel 文件到这里 (支持多选)</h3>
+        <p>自动合并 · 智能表头 · <b>保留所有原始数据</b></p>
+        <input type="file" id="fileInput" multiple accept=".xlsx, .xls" style="display:none" onchange="handleFiles(this.files)">
+    </div>
+
+    <textarea id="inputData" placeholder="或在此处手动粘贴数据..."></textarea>
+
+    <div class="btn-group">
+        <button class="btn-analyze" onclick="processData()">🚀 开始智能分析</button>
+        <button class="btn-export" id="btnExport" onclick="exportToExcel()">📥 导出表格</button>
+    </div>
+    
+    <p id="status"></p>
+
+    <div class="table-container">
+        <table id="resultTable">
+            <thead id="tableHead"></thead>
+            <tbody id="tableBody"></tbody>
+        </table>
+    </div>
+</div>
+
+<div class="bottom-bar" id="bottomBar">
+    <span id="selectedCount">已选 0 项</span>
+    <select id="modelSelect" class="model-select" onchange="renderTable(false)">
+        <option value="deepseek">🤖 DeepSeek</option>
+        <option value="gemini">✨ Gemini (Google)</option>
+        <option value="both" selected>⚔️ 双模对比 (PK)</option>
+    </select>
+    <button class="btn-batch" onclick="batchAnalyze()">开始 AI 诊断</button>
+</div>
+
+<div class="system-status">
+    <span id="sysDot" class="status-dot"></span><span id="sysText">Checking...</span>
+</div>
+
+<div id="settingModal" class="modal">
+    <div class="modal-content">
+        <h3>🔌 模型连接设置</h3>
+        
+        <div class="api-card" style="border-left: 4px solid #f39c12;">
+            <h4>🤖 DeepSeek <button class="check-btn" onclick="testConnection('deepseek')">🩺 自检</button></h4>
+            <label>API Key:</label>
+            <input type="password" id="dsKey" placeholder="sk-..." onchange="saveSettings()">
+        </div>
+
+        <div class="api-card" style="border-left: 4px solid #3867d6;">
+            <h4>✨ Gemini (Google) <button class="check-btn" onclick="testConnection('gemini')">🩺 自检</button></h4>
+            <label>API Key:</label>
+            <input type="password" id="gemKey" placeholder="AIza..." onchange="saveSettings()">
+            <label>Base URL (必填/代理地址):</label>
+            <input type="text" id="gemUrl" value="https://generativelanguage.googleapis.com" placeholder="https://..." onchange="saveSettings()">
+            <div style="font-size:11px; color:#666">* 使用 gemini-pro 模型，请确保代理支持跨域(CORS)</div>
+        </div>
+
+        <div id="testLog" class="test-log"></div>
+
+        <hr style="margin: 15px 0; border: 0; border-top: 1px solid #eee;">
+        
+        <h3>🎨 视觉与配置</h3>
+        <label>高亮前 N 名：</label>
+        <input type="number" id="topNCount" value="20" placeholder="20" onchange="saveSettings()">
+        
+        <div class="color-group">
+            <div class="color-item"><label>🔵 蓝海色</label><input type="color" id="colorBlue" value="#dff9fb" onchange="saveSettings()"></div>
+            <div class="color-item"><label>🟠 稳健色</label><input type="color" id="colorOld" value="#fceabb" onchange="saveSettings()"></div>
+            <div class="color-item"><label>🏆 必做色</label><input type="color" id="colorBoth" value="#ff7675" onchange="saveSettings()"></div>
+        </div>
+
+        <hr style="margin: 15px 0; border: 0; border-top: 1px solid #eee;">
+        <button class="btn-reset" onclick="resetColumnOrder()">🔄 重置列顺序 (恢复默认)</button>
+        <div style="overflow: hidden; padding-bottom: 15px;">
+            <button class="btn-config-io btn-exp" onclick="exportConfig()">📤 导出配置</button>
+            <button class="btn-config-io btn-imp" onclick="document.getElementById('configInput').click()">📥 导入配置</button>
+            <input type="file" id="configInput" accept=".json" style="display:none" onchange="importConfig(this.files)">
+        </div>
+        <button onclick="closeSettings()" style="background:#3498db; color:white; width:100%; padding:10px; border:none; border-radius:4px; cursor:pointer;">关闭</button>
+    </div>
+</div>
+
+<script>
+    // --- 状态检测 ---
+    window.addEventListener('load', () => {
+        const dot = document.getElementById('sysDot');
+        const txt = document.getElementById('sysText');
+        if (typeof XLSX !== 'undefined' && typeof Sortable !== 'undefined') {
+            dot.classList.add('status-ok');
+            txt.innerText = "系统就绪 (v21.9)";
+        } else {
+            dot.classList.add('status-err');
+            txt.innerText = "组件加载失败";
+            alert("❌ 关键组件未加载！\n可能原因：网络无法连接 CDN。\n请检查网络或尝试刷新。");
+        }
+    });
+
+    // --- 核心配置 ---
+    let config = { 
+        dsKey: "", gemKey: "", gemUrl: "https://generativelanguage.googleapis.com", 
+        corsMode: false, topN: 20, 
+        colorBlue: "#dff9fb", colorOld: "#fceabb", colorBoth: "#ff7675" 
+    };
+    let analyzedData = [];
+    let originalHeaders = [];
+    let currentSort = { key: 'totalAllScore', asc: false };
+    // ⚠️ 核心修正：清空忽略列表，保证原始数据不丢失，显示所有列
+    const ignoredColumns = []; 
+    let sortableInstance = null;
+
+    // --- 拖拽与文件逻辑 ---
+    const dropZone = document.getElementById('dropZone');
+    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover')); 
+    dropZone.addEventListener('drop', (e) => { 
+        e.preventDefault(); 
+        dropZone.classList.remove('dragover'); 
+        handleFiles(e.dataTransfer.files); 
+    });
+
+    async function handleFiles(files) {
+        if (!files.length) return;
+        if(typeof XLSX === 'undefined') { alert("❌ Excel组件未加载，请刷新"); return; }
+        document.getElementById('status').innerText = `⏳ 正在读取 ${files.length} 个文件...`;
+        let allRows = [], headerRow = [];
+        for (let i = 0; i < files.length; i++) {
+            try {
+                const data = await readExcelFile(files[i]);
+                let headerIndex = -1;
+                for(let r=0; r<Math.min(data.length, 20); r++) {
+                    const rowStr = (data[r] || []).join(" ");
+                    if(rowStr.includes("关键词") && (rowStr.includes("人数") || rowStr.includes("点击"))) { headerIndex = r; break; }
+                }
+                if (headerIndex === -1) continue;
+                if (headerRow.length === 0) headerRow = data[headerIndex];
+                allRows = allRows.concat(data.slice(headerIndex + 1));
+            } catch (err) { console.error(err); }
+        }
+        if (allRows.length === 0) { alert("❌ 未找到有效数据"); return; }
+        const tsv = [headerRow.join("\t"), ...allRows.map(r => (r||[]).join("\t"))].join("\n");
+        document.getElementById('inputData').value = tsv;
+        document.getElementById('status').innerText = `✅ 已合并 ${files.length} 个文件，共 ${allRows.length} 条数据，准备就绪`;
+        setTimeout(processData, 500); 
+    }
+
+    function readExcelFile(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => { 
+                try {
+                    const workbook = XLSX.read(new Uint8Array(e.target.result), {type: 'array'});
+                    resolve(XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], {header: 1}));
+                } catch (e) { reject(e); }
+            };
+            reader.onerror = reject;
+            reader.readAsArrayBuffer(file);
+        });
+    }
+
+    // --- 配置管理 ---
+    window.onload = function() {
+        if(localStorage.getItem('ds_api_key')) config.dsKey = localStorage.getItem('ds_api_key'); 
+        if(localStorage.getItem('ai_config_v21')) try { config = JSON.parse(localStorage.getItem('ai_config_v21')); } catch(e){}
+        fillUI();
+    }
+    function fillUI() {
+        document.getElementById('dsKey').value = config.dsKey || "";
+        document.getElementById('gemKey').value = config.gemKey || "";
+        document.getElementById('gemUrl').value = config.gemUrl || "https://generativelanguage.googleapis.com";
+        document.getElementById('topNCount').value = config.topN || 20;
+        document.getElementById('colorBlue').value = config.colorBlue;
+        document.getElementById('colorOld').value = config.colorOld;
+        document.getElementById('colorBoth').value = config.colorBoth;
+    }
+    function openSettings() { document.getElementById('settingModal').style.display = 'block'; }
+    function closeSettings() { saveSettings(); document.getElementById('settingModal').style.display = 'none'; if(analyzedData.length > 0) renderTable(false); }
+    function saveSettings() {
+        config.dsKey = document.getElementById('dsKey').value;
+        config.gemKey = document.getElementById('gemKey').value;
+        config.gemUrl = document.getElementById('gemUrl').value.replace(/\/$/, '');
+        config.topN = parseInt(document.getElementById('topNCount').value) || 20;
+        config.colorBlue = document.getElementById('colorBlue').value;
+        config.colorOld = document.getElementById('colorOld').value;
+        config.colorBoth = document.getElementById('colorBoth').value;
+        config.colOrder = localStorage.getItem('ds_col_order');
+        localStorage.setItem('ai_config_v21', JSON.stringify(config));
+    }
+    function exportConfig() {
+        const exportData = { config: config, colOrder: localStorage.getItem('ds_col_order') };
+        const blob = new Blob([JSON.stringify(exportData, null, 2)], {type: "application/json"});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = "config.json"; document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    }
+    function importConfig(files) {
+        if (!files.length) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const data = JSON.parse(e.target.result);
+                if (data.config) {
+                    config = data.config;
+                    if(data.colOrder) localStorage.setItem('ds_col_order', data.colOrder);
+                    else localStorage.removeItem('ds_col_order');
+                    saveSettings(); fillUI();
+                    alert("✅ 配置已导入");
+                    if(analyzedData.length > 0) renderTable(false);
+                }
+            } catch (err) { alert("❌ 文件格式错误"); }
+        };
+        reader.readAsText(files[0]);
+    }
+
+    // --- 核心业务逻辑 ---
+    function processData() {
+        const input = document.getElementById('inputData').value.trim();
+        if (!input) { alert("请先输入数据"); return; }
+        const rows = input.split('\n').map(row => row.split(/\t/));
+        if (rows.length < 2) return;
+        originalHeaders = rows[0].map(h => h.trim());
+
+        let map = {};
+        originalHeaders.forEach((h, i) => {
+            if (h.includes('关键词')) map.key = i;
+            else if (h.includes('人数') || (h.includes('搜索') && h.includes('量'))) map.tra = i;
+            else if (h.includes('增速')) map.gro = i;
+            else if (h.includes('转化') || h.includes('支付')) map.con = i;
+            else if (h.includes('点击率') || h.includes('点击')) map.clk = i;
+        });
+        if (colTra === -1) originalHeaders.forEach((h, i) => { if (h.includes('搜索') && i !== colGro) colTra = i; });
+        if (colTra === -1 || colGro === -1 || colCon === -1) { document.getElementById('status').innerText = `❌ 缺少关键列！`; return; }
+
+        let data = [];
+        for (let i = 1; i < rows.length; i++) {
+            const row = rows[i]; if (row.length < 2) continue;
+            const key = row[map.key] || `行${i}`;
+            
+            const vTra = parseRange(row[map.tra]);
+            let vGro = parseFloat((row[map.gro] || "0").toString().replace('%', '')) || 0;
+            const vCon = parseRange(row[map.con]);
+            let vClick = map.clk !== undefined ? parseFloat((row[map.clk] || "0").toString().replace('%', '')) || 0 : 0;
+            let estSalesMonth = vClick > 0 ? vTra * (vClick / 100) * (vCon / 100) : 0;
+            
+            let checkGro = Math.abs(vGro) < 10 ? vGro * 100 : vGro;
+            let scoreGro = getLinearScore(checkGro, [[100, 5], [300, 12], [800, 16], [1500, 20]]);
+            let scorePop = getLinearScore(vTra, [[300, 5], [800, 10], [2000, 18], [5000, 25]]);
+            let scoreClick = getLinearScore(vClick, [[50, 8], [80, 15], [120, 20], [180, 25]]);
+            let scoreCon = getLinearScore(vCon, [[5, 10], [10, 18], [20, 25], [30, 30]]);
+            let blueScore = scoreGro + scorePop + scoreClick + scoreCon;
+
+            let blueDecision = "", blueClass = "";
+            if (blueScore >= 80) { blueDecision = "🔥 必做"; blueClass = "decision-must"; }
+            else if (blueScore >= 65) { blueDecision = "✅ 可做"; blueClass = "decision-can"; }
+            else if (blueScore >= 50) { blueDecision = "⚠️ 观察"; blueClass = "decision-observe"; }
+            else { blueDecision = "❌ 放弃"; blueClass = "decision-drop"; }
+
+            data.push({ 
+                id: i, key, vTra, vGro, vCon, vClick, estSalesMonth, estSalesDay: estSalesMonth/30, originalRow: row,
+                aiDsReason: "", aiGemReason: "", // 新增字段
+                blueScore: parseFloat(blueScore.toFixed(1)), blueDecision, blueClass,
+                txtGro: getInterpretation(checkGro, 'growth'), txtPop: getInterpretation(vTra, 'pop'),
+                txtClick: getInterpretation(vClick, 'click'), txtCon: getInterpretation(vCon, 'conv')
+            });
+        }
+
+        const tras = data.map(d => d.vTra).sort((a, b) => a - b);
+        const gros = data.map(d => d.vGro).sort((a, b) => a - b);
+        const cons = data.map(d => d.vCon).sort((a, b) => a - b);
+        function getRank(arr, val) { return (arr.findIndex(x => x >= val) / (arr.length - 1)) * 100; }
+        data.forEach(d => {
+            d.sTra = getRank(tras, d.vTra); d.sGro = getRank(gros, d.vGro); d.sCon = getRank(cons, d.vCon);
+            d.totalScore = (d.sTra * 0.3) + (d.sGro * 0.4) + (d.sCon * 0.3);
+            d.totalAllScore = parseFloat((d.blueScore + d.totalScore).toFixed(1));
+        });
+
+        analyzedData = data.sort((a, b) => b.totalAllScore - a.totalAllScore);
+        renderTable(false);
+        document.getElementById('status').innerText = `✅ 分析完成！共 ${data.length} 条数据`;
+    }
+
+    // --- 动态表格渲染 (核心修改) ---
+    function getColumnDefinitions(dataRow) {
+        let cols = [
+            { id: 'cb', fixed: true, html: `<th class="th-check ignore-sort" data-id="cb"><input type="checkbox" onclick="toggleAll(this)"></th>`, render: (d, i) => `<td class="td-check"><input type="checkbox" class="row-check" value="${d.id}" onchange="updateBar()"></td>` },
+            { id: 'total_all', html: `<th class="th-total-all sortable-th" data-id="total_all" onclick="event.stopPropagation(); sortTable('totalAllScore')">⚡ 全能指数 <span class="sort-icon">${getSortIcon('totalAllScore')}</span></th>`, render: (d) => `<td class="td-total-all" style="${d.totalAllScore>=160?'color:#c0392b;':''}"><div class="data-bar" style="width:${Math.min((d.totalAllScore/200)*100,100)}%"></div><span class="score-val">${d.totalAllScore>=160?'👑':''} ${d.totalAllScore.toFixed(1)}</span></td>` },
+            { id: 'blue_score', html: `<th class="th-blue-score sortable-th" data-id="blue_score" onclick="event.stopPropagation(); sortTable('blueScore')">🌊 蓝海总分 <span class="sort-icon">${getSortIcon('blueScore')}</span></th>`, render: (d, s) => `<td class="td-blue-score" style="${s.blue}">${d.blueScore.toFixed(1)}</td>` },
+            { id: 'blue_decision', html: `<th class="th-blue-decision sortable-th" data-id="blue_decision">⚖️ 蓝海决策</th>`, render: (d) => `<td class="td-blue-decision"><span class="${d.blueClass}">${d.blueDecision}</span></td>` },
+            { id: 'old_score', html: `<th class="th-core sortable-th" data-id="old_score" onclick="event.stopPropagation(); sortTable('totalScore')">旧商机分 <span class="sort-icon">${getSortIcon('totalScore')}</span></th>`, render: (d, s) => `<td class="td-score-main" style="${s.old} font-size:13px;">${d.totalScore.toFixed(1)}</td>` },
+            { id: 'sales_m', html: `<th class="th-sales sortable-th" data-id="sales_m" onclick="event.stopPropagation(); sortTable('estSalesMonth')">💰 月预估 <span class="sort-icon">${getSortIcon('estSalesMonth')}</span></th>`, render: (d) => `<td class="td-sales-month">${Math.round(d.estSalesMonth).toLocaleString()}</td>` },
+            { id: 'sales_d', html: `<th class="th-sales sortable-th" data-id="sales_d" onclick="event.stopPropagation(); sortTable('estSalesDay')">📅 日预估 <span class="sort-icon">${getSortIcon('estSalesDay')}</span></th>`, render: (d) => `<td class="td-sales-day">${Math.round(d.estSalesDay).toLocaleString()}</td>` },
+            { id: 'sc_tra', html: `<th class="th-core sortable-th" style="color:#999; font-size:12px" data-id="sc_tra">流量分</th>`, render: (d) => `<td style="color:#aaa">${d.sTra.toFixed(0)}</td>` },
+            { id: 'sc_gro', html: `<th class="th-core sortable-th" style="color:#999; font-size:12px" data-id="sc_gro">增速分</th>`, render: (d) => `<td style="color:#aaa">${d.sGro.toFixed(0)}</td>` },
+            { id: 'sc_con', html: `<th class="th-core sortable-th" style="color:#999; font-size:12px" data-id="sc_con">转化分</th>`, render: (d) => `<td style="color:#aaa">${d.sCon.toFixed(0)}</td>` },
+            { id: 'cl_tra', html: `<th class="th-clean sortable-th" data-id="cl_tra">清洗流量</th>`, render: (d) => `<td style="color:#16a085;">${d.vTra.toLocaleString()}</td>` },
+            { id: 'cl_gro', html: `<th class="th-clean sortable-th" data-id="cl_gro">清洗增速</th>`, render: (d) => `<td style="color:#16a085;">${d.vGro.toFixed(2)}%</td>` },
+            { id: 'cl_con', html: `<th class="th-clean sortable-th" data-id="cl_con">清洗转化</th>`, render: (d) => `<td style="color:#16a085;">${d.vCon.toFixed(2)}%</td>` },
+        ];
+        
+        // 插入所有原始列 (修复数据丢失问题：不再忽略任何列)
+        originalHeaders.forEach((h, idx) => {
+            // 这里移除了 !ignoredColumns.includes 的判断，确保所有列都显示
+            cols.push({ id: `orig_${idx}`, html: `<th class="th-original sortable-th" data-id="orig_${idx}">${h}</th>`, render: (d, s) => { 
+                let st = (d.originalRow[idx] === d.key) ? s.key : ""; 
+                let c = (d.originalRow[idx] === d.key && s.key.includes('🏆')) ? `🏆 ${d.originalRow[idx]}` : (d.originalRow[idx]||''); 
+                return `<td class="td-original" ${st}>${c}</td>`; 
+            } });
+        });
+
+        cols.push({ id: 'txt_gro', html: `<th class="th-interpret sortable-th" data-id="txt_gro">📈 增速解读</th>`, render: (d) => `<td class="td-interpret ${d.txtGro.includes('❌')?'txt-bad':'txt-good'}">${d.txtGro}</td>` });
+        cols.push({ id: 'txt_pop', html: `<th class="th-interpret sortable-th" data-id="txt_pop">👥 规模解读</th>`, render: (d) => `<td class="td-interpret ${d.txtPop.includes('❌')?'txt-bad':'txt-good'}">${d.txtPop}</td>` });
+        cols.push({ id: 'txt_click', html: `<th class="th-interpret sortable-th" data-id="txt_click">🖱️ 吸引力解读</th>`, render: (d) => `<td class="td-interpret ${d.txtClick.includes('❌')?'txt-bad':'txt-good'}">${d.txtClick}</td>` });
+        cols.push({ id: 'txt_con', html: `<th class="th-interpret sortable-th" data-id="txt_con">💰 盈利解读</th>`, render: (d) => `<td class="td-interpret ${d.txtCon.includes('❌')?'txt-bad':'txt-good'}">${d.txtCon}</td>` });
+        cols.push({ id: 'ai_score', html: `<th class="th-ai-score sortable-th" data-id="ai_score" onclick="event.stopPropagation(); sortTable('aiScore')">🤖 AI 评价 <span class="sort-icon">${getSortIcon('aiScore')}</span></th>`, render: (d) => `<td class="td-ai-score" style="color:#f39c12">${d.aiScore === -1 ? '-' : d.aiScore}</td>` });
+        cols.push({ id: 'ai_reason', html: `<th class="th-ai-reason sortable-th" data-id="ai_reason">AI 毒舌分析</th>`, render: (d) => `<td class="td-ai-reason" id="reason-${d.id}">${d.aiReason || ''}</td>` });
+        
+        // --- 双模动态列逻辑 (关键新增) ---
+        const mode = document.getElementById('modelSelect').value;
+        if (mode === 'deepseek' || mode === 'both') {
+            cols.push({ id: 'ai_ds', html: `<th class="th-ai-ds sortable-th" data-id="ai_ds">🤖 DeepSeek 评价</th>`, render: (d) => `<td class="td-ai-reason" id="ds-${d.id}">${d.aiDsReason || ''}</td>` });
+        }
+        if (mode === 'gemini' || mode === 'both') {
+            cols.push({ id: 'ai_gem', html: `<th class="th-ai-gem sortable-th" data-id="ai_gem">✨ Gemini 评价</th>`, render: (d) => `<td class="td-ai-reason" id="gem-${d.id}">${d.aiGemReason || ''}</td>` });
+        }
+
+        return cols;
+    }
+
+    function renderTable(keepOrder) {
+        const thead = document.getElementById('tableHead');
+        const tbody = document.getElementById('tableBody');
+        let allCols = getColumnDefinitions({});
+        let savedOrder = localStorage.getItem('ds_col_order');
+        if (savedOrder) {
+            try {
+                let orderList = JSON.parse(savedOrder);
+                allCols.sort((a, b) => {
+                    let idxA = orderList.indexOf(a.id); let idxB = orderList.indexOf(b.id);
+                    return (idxA === -1 ? 999 : idxA) - (idxB === -1 ? 999 : idxB);
+                });
+            } catch (e) {}
+        }
+        thead.innerHTML = `<tr>${allCols.map(c => c.html).join('')}</tr>`;
+
+        let N = config.topN;
+        let sortedBlue = [...analyzedData].sort((a, b) => b.blueScore - a.blueScore);
+        let thBlue = sortedBlue.length ? sortedBlue[Math.min(N-1, sortedBlue.length-1)].blueScore : 999;
+        let sortedOld = [...analyzedData].sort((a, b) => b.totalScore - a.totalScore);
+        let thOld = sortedOld.length ? sortedOld[Math.min(N-1, sortedOld.length-1)].totalScore : 999;
+
+        let styleBlueBg = `background-color: ${config.colorBlue};`;
+        let styleOldBg = `background-color: ${config.colorOld};`;
+        let styleBothBg = `background-color: ${config.colorBoth}; color: white; font-weight: bold;`;
+
+        let bHtml = '';
+        analyzedData.forEach(d => {
+            let isTopBlue = (d.blueScore >= thBlue && d.blueScore > 0);
+            let isTopOld = (d.totalScore >= thOld && d.totalScore > 0);
+            let styles = { blue: isTopBlue ? styleBlueBg : "", old: isTopOld ? styleOldBg : "", key: "" };
+            
+            if (isTopBlue && isTopOld) styles.key = `style="${styleBothBg} border: 2px solid #fff;"`;
+            else if (isTopBlue) styles.key = `style="${styleBlueBg}"`;
+            else if (isTopOld) styles.key = `style="${styleOldBg}"`;
+
+            let rowCols = getColumnDefinitions(d);
+            if (savedOrder) {
+                let orderList = JSON.parse(savedOrder);
+                rowCols.sort((a, b) => {
+                    let idxA = orderList.indexOf(a.id); let idxB = orderList.indexOf(b.id);
+                    return (idxA === -1 ? 999 : idxA) - (idxB === -1 ? 999 : idxB);
+                });
+            }
+            bHtml += `<tr id="tr-${d.id}" class="${d.blueScore>=80?'row-top':''}">${rowCols.map(c => c.render(d, styles)).join('')}</tr>`;
+        });
+        tbody.innerHTML = bHtml;
+        document.getElementById('resultTable').style.display = 'table';
+        document.getElementById('btnExport').style.display = 'inline-block';
+        updateBar();
+        initSortable();
+    }
+
+    function initSortable() {
+        const el = document.querySelector('#tableHead tr');
+        if(typeof Sortable === 'undefined') return;
+        if (sortableInstance) sortableInstance.destroy();
+        sortableInstance = Sortable.create(el, {
+            animation: 150, filter: '.ignore-sort',
+            onEnd: function (evt) {
+                let newOrder = [];
+                el.querySelectorAll('th').forEach(th => { if (th.dataset.id) newOrder.push(th.dataset.id); });
+                localStorage.setItem('ds_col_order', JSON.stringify(newOrder));
+                renderTable(true);
+            }
+        });
+    }
+    function resetColumnOrder() { localStorage.removeItem('ds_col_order'); alert("已重置，请刷新"); location.reload(); }
+    
+    // 辅助函数
+    function getLinearScore(val, points) {
+        if (val < points[0][0]) return 0; if (val >= points[points.length - 1][0]) return points[points.length - 1][1];
+        for (let i = 0; i < points.length - 1; i++) { if (val >= points[i][0] && val < points[i+1][0]) { let r = (val - points[i][0]) / (points[i+1][0] - points[i][0]); return points[i][1] + r * (points[i+1][1] - points[i][1]); } } return 0;
+    }
+    function getInterpretation(val, type) { if(type==='growth') return val>=1500?"🔥 爆发期":val>=800?"🚀 风口确认":val>=300?"📈 明显起量":val>=100?"✅ 稳定增长":"❌ 无趋势"; if(type==='pop') return val>=5000?"⚠️ 超级红海":val>=2000?"💎 主流刚需":val>=800?"✅ 细分赛道":val>=300?"🔍 垂直需求":"❌ 极小众"; if(type==='click') return val>=180?"🔥 强烈欲望":val>=120?"😍 强兴趣":val>=80?"✅ 合格":val>=50?"😐 普通":"❌ 无吸引力"; if(type==='conv') return val>=30?"👑 顶级商品":val>=20?"💎 优质":val>=10?"✅ 可规模":val>=5?"😐 勉强":"❌ 不赚钱"; return "-"; }
+    function sortTable(key) { if (currentSort.key === key) currentSort.asc = !currentSort.asc; else { currentSort.key = key; currentSort.asc = false; } analyzedData.sort((a, b) => { let valA = a[key], valB = b[key]; if (valA < valB) return currentSort.asc ? -1 : 1; if (valA > valB) return currentSort.asc ? 1 : -1; return 0; }); renderTable(false); }
+    function getSortIcon(key) { if (currentSort.key !== key) return '▼'; return currentSort.asc ? '▲' : '▼'; }
+    function parseRange(val) { if (!val) return 0; let s = val.toString().replace(/[ ?%元,]/g, '').replace(/～|—|-/g, '~'); let mul = 1; if (s.includes('万')) { mul = 10000; s = s.replace(/万/g, ''); } if (s.includes('~')) { const p = s.split('~'); return ((parseFloat(p[0])||0) + (parseFloat(p[1])||0))/2 * mul; } return (parseFloat(s)||0) * mul; }
+    function toggleAll(src) { document.querySelectorAll('.row-check').forEach(c => c.checked = src.checked); updateBar(); }
+    function updateBar() { const c = document.querySelectorAll('.row-check:checked').length; document.getElementById('selectedCount').innerText = `已选 ${c} 项`; document.getElementById('bottomBar').style.display = c > 0 ? 'flex' : 'none'; }
+    
+    // --- 新增：JSON强力清洗器 ---
+    function cleanJson(text) {
+        try { return JSON.parse(text); } catch(e) {}
+        const match = text.match(/\[.*\]/s) || text.match(/\{.*\}/s);
+        if (match) {
+            try { return JSON.parse(match[0]); } catch(e) {}
+        }
+        return null;
+    }
+
+    // --- 新增：自检功能 (修复：强制使用 gemini-pro) ---
+    async function testConnection(model) {
+        const log = document.getElementById('testLog');
+        log.style.display = 'block'; log.innerHTML = `⏳ 正在测试 ${model} ...`;
+        saveSettings();
+        try {
+            let start = Date.now();
+            if (model === 'deepseek') {
+                if (!config.dsKey) throw new Error("API Key 未填写");
+                await fetch("https://api.deepseek.com/chat/completions", {
+                    method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${config.dsKey}` },
+                    body: JSON.stringify({ model: "deepseek-chat", messages: [{role:"user", content:"hi"}], max_tokens: 1 })
+                });
+            } else {
+                if (!config.gemKey) throw new Error("API Key 未填写");
+                // 强制使用 gemini-pro，确保兼容性
+                await fetch(`${config.gemUrl}/v1beta/models/gemini-pro:generateContent?key=${config.gemKey}`, {
+                    method: "POST", headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ contents: [{ parts: [{ text: "hi" }] }] })
+                });
+            }
+            log.innerHTML = `<span class="status-ok-text">✅ ${model} 连接成功! 耗时: ${Date.now()-start}ms</span>`;
+        } catch (e) {
+            log.innerHTML = `<span class="status-err-text">❌ ${model} 连接失败: ${e.message||e}</span>`;
+        }
+    }
+
+    // --- 新增：双模分析 (修复：分析也强制使用 gemini-pro) ---
+    async function batchAnalyze() {
+        const mode = document.getElementById('modelSelect').value;
+        const cbs = Array.from(document.querySelectorAll('.row-check:checked'));
+        if (!cbs.length) return;
+        
+        document.querySelector('.btn-batch').innerText = "⏳ 正在分析...";
+        const items = cbs.map(cb => analyzedData.find(d => d.id == cb.value));
+        const promptText = `我是电商选品师。请简短毒舌评价以下关键词数据。必须返回 JSON 数组，格式：[{"id":1, "reason":"【定性】...【策略】...【风险】..."}]`;
+        const dataStr = JSON.stringify(items.map(i => ({id: i.id, kw: i.key, tra: i.vTra, clk: i.vClick, con: i.vCon})));
+
+        let promises = [];
+
+        // DeepSeek
+        if ((mode === 'deepseek' || mode === 'both') && config.dsKey) {
+            items.forEach(i => document.getElementById(`ds-${i.id}`).innerText = 'Thinking...');
+            promises.push(
+                fetch("https://api.deepseek.com/chat/completions", {
+                    method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${config.dsKey}` },
+                    body: JSON.stringify({ model: "deepseek-chat", messages: [{role: "system", content: promptText}, {role: "user", content: dataStr}] })
+                }).then(r=>r.json()).then(j => {
+                    const res = cleanJson(j.choices[0].message.content);
+                    if(res) res.forEach(r => { const d = analyzedData.find(i=>i.id==r.id); if(d) d.aiDsReason = r.reason; });
+                }).catch(e => {
+                    items.forEach(i => { if(!i.aiDsReason) i.aiDsReason = `<span class="td-ai-error">DS Error: ${e.message}</span>`; });
+                })
+            );
+        }
+
+        // Gemini (修复：使用 gemini-pro，解决 not found 问题)
+        if ((mode === 'gemini' || mode === 'both') && config.gemKey) {
+            items.forEach(i => document.getElementById(`gem-${i.id}`).innerText = 'Thinking...');
+            const gemPayload = {
+                contents: [{ parts: [{ text: promptText + "\nData:\n" + dataStr }] }]
+            };
+            promises.push(
+                fetch(`${config.gemUrl}/v1beta/models/gemini-pro:generateContent?key=${config.gemKey}`, {
+                    method: "POST", headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(gemPayload)
+                }).then(r=>r.json()).then(j => {
+                    if (j.error) throw new Error(j.error.message);
+                    const txt = j.candidates[0].content.parts[0].text;
+                    const res = cleanJson(txt);
+                    if(res) res.forEach(r => { const d = analyzedData.find(i=>i.id==r.id); if(d) d.aiGemReason = r.reason; });
+                }).catch(e => {
+                    items.forEach(i => { if(!i.aiGemReason) i.aiGemReason = `<span class="td-ai-error">Gem Error: ${e.message}</span>`; });
+                })
+            );
+        }
+
+        await Promise.all(promises);
+        renderTable(false);
+        document.querySelector('.btn-batch').innerText = "AI 诊断完成";
+    }
+    
+    function exportToExcel() {
+        let savedOrder = localStorage.getItem('ds_col_order');
+        let allCols = getColumnDefinitions({});
+        // 导出时不需要复选框
+        allCols = allCols.filter(c => c.id !== 'cb');
+        
+        if (savedOrder) {
+            try {
+                let orderList = JSON.parse(savedOrder);
+                allCols.sort((a, b) => {
+                    let idxA = orderList.indexOf(a.id); let idxB = orderList.indexOf(b.id);
+                    return (idxA === -1 ? 999 : idxA) - (idxB === -1 ? 999 : idxB);
+                });
+            } catch(e){}
+        }
+        let headers = allCols.map(c => c.html.replace(/<[^>]+>/g, '').trim());
+        let csv = "\uFEFF" + headers.join(",") + "\n";
+        analyzedData.forEach(d => {
+            let rowCols = getColumnDefinitions(d);
+            // 过滤掉复选框渲染器
+            let rowData = rowCols.filter(c => c.id !== 'cb').map(c => `"${c.render(d, {blue:"", old:"", key:""}).replace(/<[^>]+>/g, '').trim()}"`);
+            
+            // 重新排序数据以匹配表头
+            if (savedOrder) {
+                let sortedCols = getColumnDefinitions(d).filter(c => c.id !== 'cb');
+                if(savedOrder) {
+                     let orderList = JSON.parse(savedOrder);
+                     sortedCols.sort((a, b) => (orderList.indexOf(a.id)===-1?999:orderList.indexOf(a.id)) - (orderList.indexOf(b.id)===-1?999:orderList.indexOf(b.id)));
+                }
+                csv += sortedCols.map(c => `"${c.render(d, {blue:"", old:"", key:""}).replace(/<[^>]+>/g, '').trim()}"`).join(",") + "\n";
+            } else {
+                csv += rowData.join(",") + "\n";
+            }
+        });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(new Blob([csv], {type: 'text/csv;charset=utf-8;'}));
+        a.download = "AI商机分析_V21_9_稳定版.csv";
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    }
+</script>
+</body>
+</html>
